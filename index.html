@@ -3239,8 +3239,29 @@ function renderBudget() {
   renderBudgetTable();
 }
 
+// テーブル・サマリー・チャート共通: ポートフォリオ保有銘柄とプランをマージした行を返す
+function getBudgetRows() {
+  const personFilter = document.getElementById('budgetPersonFilter')?.value || '';
+  const plans = loadBudgetPlans();
+  const allFunds = holdings.filter(h => h.market === 'fund' && (!personFilter || (h.person || 'self') === personFilter));
+  return dedupForSummary(allFunds).map(h => {
+    const existing = plans.find(p =>
+      p.ticker === h.ticker &&
+      (p.person || 'self') === (h.person || 'self') &&
+      (p.account || 'tokutei') === (h.account || 'tokutei')
+    );
+    return existing || {
+      id: null, ticker: h.ticker, account: h.account || 'tokutei',
+      name: h.name || h.ticker, person: h.person || 'self',
+      monthlyAmount: 0, annualReturn: 0,
+      startDate: new Date().toISOString().slice(0, 7),
+      _unsaved: true, _holding: h,
+    };
+  });
+}
+
 function renderBudgetSummary() {
-  const list = getBudgetFiltered();
+  const list = getBudgetRows();
   const totalMonthly = list.reduce((s, p) => s + (p.monthlyAmount || 0), 0);
   const fv = (yr) => list.reduce((s, p) => {
     const months = Math.max(0, yr * 12);
@@ -3262,7 +3283,7 @@ function renderBudgetSimChart() {
   const canvas = document.getElementById('budgetSimChart');
   if (!canvas) return;
   if (budgetSimChartInst) { budgetSimChartInst.destroy(); budgetSimChartInst = null; }
-  const list = getBudgetFiltered();
+  const list = getBudgetRows();
   if (!list.length) return;
   const labels = [];
   const principalData = [];
@@ -3344,36 +3365,8 @@ function renderBudgetActual() {
 }
 
 function renderBudgetTable() {
-  const personFilter = document.getElementById('budgetPersonFilter')?.value || '';
-  const plans = loadBudgetPlans();
   const personLabel = { self: '自分', wife: '妻' };
-
-  // ポートフォリオと同じdedupForSummaryで25件に合わせる（ticker+person+account単位）
-  const allFunds = holdings.filter(h => h.market === 'fund' && (!personFilter || (h.person || 'self') === personFilter));
-  const fundHoldings = dedupForSummary(allFunds);
-
-  const rows = fundHoldings.map(h => {
-    const key_ticker = h.ticker;
-    const key_person = h.person || 'self';
-    const key_account = h.account || 'tokutei';
-    const existing = plans.find(p =>
-      p.ticker === key_ticker &&
-      (p.person || 'self') === key_person &&
-      (p.account || 'tokutei') === key_account
-    );
-    return existing || {
-      id: null,
-      ticker: key_ticker,
-      account: key_account,
-      name: h.name || key_ticker,
-      person: key_person,
-      monthlyAmount: 0,
-      annualReturn: 0,
-      startDate: new Date().toISOString().slice(0, 7),
-      _unsaved: true,
-      _holding: h,
-    };
-  });
+  const rows = getBudgetRows();
 
   if (!rows.length) {
     document.getElementById('budgetTableBody').innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:32px">投資信託の保有銘柄がありません</td></tr>';
