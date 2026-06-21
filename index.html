@@ -783,6 +783,7 @@
       </select>
     </div>
     <button class="btn btn-primary" onclick="openBudgetModal()">＋ プラン追加</button>
+    <button class="btn btn-ghost" onclick="resetAllBudgetPlans()" style="color:#ef4444;border-color:#ef4444;">全プランリセット</button>
   </div>
 
   <!-- サマリカード -->
@@ -3337,15 +3338,26 @@ function renderBudgetTable() {
   const plans = loadBudgetPlans();
   const personLabel = { self: '自分', wife: '妻' };
 
-  // 投資信託保有銘柄を全て取得し、プランとマージ
-  const fundHoldings = holdings.filter(h => h.market === 'fund' && (!personFilter || (h.person || 'self') === personFilter));
+  // 投資信託保有銘柄を ticker+person で重複排除して取得
+  const seen = new Set();
+  const fundHoldings = holdings.filter(h => {
+    if (h.market !== 'fund') return false;
+    if (personFilter && (h.person || 'self') !== personFilter) return false;
+    const key = `${h.ticker}__${h.person || 'self'}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
   const rows = fundHoldings.map(h => {
-    const existing = plans.find(p => p.ticker === h.ticker);
+    const key_ticker = h.ticker;
+    const key_person = h.person || 'self';
+    const existing = plans.find(p => p.ticker === key_ticker && (p.person || 'self') === key_person);
     return existing || {
       id: null,
-      ticker: h.ticker,
-      name: h.name || h.ticker,
-      person: h.person || 'self',
+      ticker: key_ticker,
+      name: h.name || key_ticker,
+      person: key_person,
       monthlyAmount: 0,
       annualReturn: 0,
       startDate: new Date().toISOString().slice(0, 7),
@@ -3494,6 +3506,13 @@ function deleteBudgetPlan(id) {
   if (!confirm('このプランを削除しますか？')) return;
   saveBudgetPlans(loadBudgetPlans().filter(x => x.id !== id));
   renderBudget();
+}
+
+function resetAllBudgetPlans() {
+  if (!confirm('全ての積立プランを削除します。よろしいですか？')) return;
+  saveBudgetPlans([]);
+  renderBudget();
+  showAlert('全プランを削除しました', 'info');
 }
 
 // ============================================================
