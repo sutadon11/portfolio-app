@@ -3467,12 +3467,12 @@ function renderBudgetTable() {
     <td style="text-align:right">
       <input type="number" value="${p.monthlyAmount || 0}" min="0" step="1000"
         style="${inlineStyle}"
-        onchange="budgetFieldChange(this,'monthlyAmount')" title="月積立額（円）">
+        oninput="budgetFieldChange(this,'monthlyAmount')" title="月積立額（円）">
     </td>
     <td style="text-align:right">
-      <input type="number" value="${(p.annualReturn || 0).toFixed(1)}" min="0" max="50" step="0.1"
+      <input type="number" value="${(p.annualReturn || 0).toFixed(1)}" min="0" step="0.1"
         style="${inlineStyle}width:64px;"
-        onchange="budgetFieldChange(this,'annualReturn')" title="想定年利（%）">
+        oninput="budgetFieldChange(this,'annualReturn')" title="想定年利（%）">
       <span style="color:var(--pos);font-size:12px">%</span>
     </td>
     <td style="color:var(--muted)">${p.startDate || '-'}</td>
