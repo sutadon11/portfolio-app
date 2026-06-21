@@ -3207,11 +3207,11 @@ function calcFV(monthlyAmount, annualReturnPct, months, initialBalance = 0) {
   return fvContrib + fvInitial;
 }
 
-// プランに紐づく保有銘柄の現在評価額を取得（同ticker・同personの全口座を合算）
+// プランに紐づく保有銘柄の現在評価額を取得（ポートフォリオと同じdedupForSummaryで重複除去して合算）
 function getPlanInitialBalance(plan) {
   if (!plan.ticker) return 0;
   const matched = holdings.filter(h => h.ticker === plan.ticker && (h.person || 'self') === (plan.person || 'self'));
-  return matched.reduce((s, h) => s + (calcHolding(h).evalValue || 0), 0);
+  return dedupForSummary(matched).reduce((s, h) => s + (calcHolding(h).evalValue || 0), 0);
 }
 
 function setBudgetSimYears(y) {
