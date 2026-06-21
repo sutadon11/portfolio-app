@@ -838,8 +838,10 @@
     <h3 id="budgetModalTitle">積立プランを追加</h3>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">
       <div class="form-group" style="grid-column:1/-1;">
-        <label>銘柄名</label>
-        <input type="text" id="bp-name" placeholder="eMAXIS Slim 全世界株式" style="width:100%;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);">
+        <label>銘柄（保有中の投資信託から選択）</label>
+        <select id="bp-name" style="width:100%;padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);">
+          <option value="">-- 選択してください --</option>
+        </select>
       </div>
       <div class="form-group">
         <label>名義人</label>
@@ -3350,15 +3352,26 @@ function renderBudgetTable() {
 function openBudgetModal(id) {
   budgetEditId = id || null;
   document.getElementById('budgetModalTitle').textContent = id ? '積立プランを編集' : '積立プランを追加';
-  ['name','person','startDate','monthly','return'].forEach(f => {
+
+  // 保有中の投資信託をドロップダウンに読み込む
+  const fundHoldings = holdings.filter(h => h.market === 'fund');
+  const sel = document.getElementById('bp-name');
+  const personLabels = { self: '自分', wife: '妻' };
+  sel.innerHTML = '<option value="">-- 選択してください --</option>'
+    + (fundHoldings.length
+        ? fundHoldings.map(h => `<option value="${h.ticker}">${h.name || h.ticker}（${personLabels[h.person||'self']}）</option>`).join('')
+        : '<option value="__manual__">（保有銘柄なし）手動入力</option>');
+
+  ['person','startDate','monthly','return'].forEach(f => {
     const el = document.getElementById('bp-' + f); if (el) el.value = '';
   });
   document.getElementById('bp-person').value = 'self';
   document.getElementById('bp-startDate').value = new Date().toISOString().slice(0, 7);
+
   if (id) {
     const p = loadBudgetPlans().find(x => x.id === id);
     if (p) {
-      document.getElementById('bp-name').value = p.name || '';
+      sel.value = p.ticker || p.name || '';
       document.getElementById('bp-person').value = p.person || 'self';
       document.getElementById('bp-startDate').value = p.startDate || '';
       document.getElementById('bp-monthly').value = p.monthlyAmount || '';
@@ -3370,16 +3383,19 @@ function openBudgetModal(id) {
 function closeBudgetModal() { document.getElementById('budgetModal').style.display = 'none'; }
 
 function saveBudgetPlan() {
-  const name = document.getElementById('bp-name').value.trim();
+  const ticker = document.getElementById('bp-name').value;
+  if (!ticker) { alert('銘柄を選択してください'); return; }
+  const holding = holdings.find(h => h.ticker === ticker);
+  const name = holding ? (holding.name || holding.ticker) : ticker;
   const monthly = parseFloat(document.getElementById('bp-monthly').value);
   const ret = parseFloat(document.getElementById('bp-return').value);
-  if (!name) { alert('銘柄名を入力してください'); return; }
   if (isNaN(monthly) || monthly <= 0) { alert('月積立額を入力してください'); return; }
   if (isNaN(ret) || ret < 0) { alert('想定年利を入力してください'); return; }
   const list = loadBudgetPlans();
   const plan = {
     id: budgetEditId || genId(),
     name,
+    ticker,
     person: document.getElementById('bp-person').value,
     startDate: document.getElementById('bp-startDate').value,
     monthlyAmount: monthly,
