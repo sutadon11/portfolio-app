@@ -820,12 +820,11 @@
     <table class="alloc-table" id="budgetTable">
       <thead>
         <tr>
-          <th>銘柄名</th><th>名義</th><th style="text-align:right">現在残高</th>
+          <th></th><th>銘柄名</th><th>名義</th><th style="text-align:right">現在残高</th>
           <th style="text-align:right">月積立額</th>
           <th style="text-align:right">想定年利</th><th>開始月</th>
           <th style="text-align:right">5年後</th><th style="text-align:right">10年後</th>
           <th style="text-align:right">20年後</th><th style="text-align:right">30年後</th>
-          <th></th>
         </tr>
       </thead>
       <tbody id="budgetTableBody"></tbody>
@@ -3346,6 +3345,7 @@ function renderBudgetTable() {
     const initBal = getPlanInitialBalance(p);
     const fvBalOnly = (yr) => '¥' + fmt(Math.round(calcFV(0, p.annualReturn || 0, yr * 12, initBal)));
     return `<tr>
+    <td><button onclick="deleteBudgetPlan('${p.id}')" style="background:rgba(239,68,68,0.15);border:none;border-radius:4px;color:#ef4444;padding:3px 8px;cursor:pointer;font-size:13px;line-height:1;">×</button></td>
     <td style="font-weight:600">${p.name || '-'}</td>
     <td><span class="person-badge person-${p.person || 'self'}">${personLabel[p.person || 'self']}</span></td>
     <td style="text-align:right">
@@ -3370,9 +3370,6 @@ function renderBudgetTable() {
     <td style="text-align:right;color:var(--muted)">${fmtFV(p, 10)}</td>
     <td style="text-align:right;color:#5ad8a6;font-weight:600">${fmtFV(p, 20)}</td>
     <td style="text-align:right;color:#5ad8a6;font-weight:600">${fmtFV(p, 30)}</td>
-    <td style="white-space:nowrap">
-      <button onclick="deleteBudgetPlan('${p.id}')" style="background:rgba(239,68,68,0.15);border:none;border-radius:4px;color:#ef4444;padding:2px 8px;cursor:pointer;font-size:11px">削除</button>
-    </td>
   </tr>`;
   }).join('');
 }
