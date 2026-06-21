@@ -3583,6 +3583,7 @@ function updateBudgetField(id, field, value) {
   if (idx < 0) return;
   list[idx][field] = value;
   saveBudgetPlans(list);
+  renderBudgetTable();
   renderBudgetSummary();
   renderBudgetSimChart();
 }
