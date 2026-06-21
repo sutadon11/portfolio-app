@@ -3333,19 +3333,45 @@ function renderBudgetActual() {
 }
 
 function renderBudgetTable() {
-  const list = getBudgetFiltered();
+  const personFilter = document.getElementById('budgetPersonFilter')?.value || '';
+  const plans = loadBudgetPlans();
   const personLabel = { self: '自分', wife: '妻' };
-  const fmtFV = (p, yr) => '¥' + fmt(Math.round(calcFV(p.monthlyAmount || 0, p.annualReturn || 0, yr * 12, getPlanInitialBalance(p))));
-  if (!list.length) {
-    document.getElementById('budgetTableBody').innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:32px">プランがありません。「＋ プラン追加」から登録してください</td></tr>';
+
+  // 投資信託保有銘柄を全て取得し、プランとマージ
+  const fundHoldings = holdings.filter(h => h.market === 'fund' && (!personFilter || (h.person || 'self') === personFilter));
+  const rows = fundHoldings.map(h => {
+    const existing = plans.find(p => p.ticker === h.ticker);
+    return existing || {
+      id: null,
+      ticker: h.ticker,
+      name: h.name || h.ticker,
+      person: h.person || 'self',
+      monthlyAmount: 0,
+      annualReturn: 0,
+      startDate: new Date().toISOString().slice(0, 7),
+      _unsaved: true,
+    };
+  });
+
+  if (!rows.length) {
+    document.getElementById('budgetTableBody').innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:32px">投資信託の保有銘柄がありません</td></tr>';
     return;
   }
+
   const inlineStyle = 'width:90px;text-align:right;padding:4px 6px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;';
-  document.getElementById('budgetTableBody').innerHTML = list.map(p => {
+  const fmtFV = (p, yr) => '¥' + fmt(Math.round(calcFV(p.monthlyAmount || 0, p.annualReturn || 0, yr * 12, getPlanInitialBalance(p))));
+
+  document.getElementById('budgetTableBody').innerHTML = rows.map(p => {
     const initBal = getPlanInitialBalance(p);
     const fvBalOnly = (yr) => '¥' + fmt(Math.round(calcFV(0, p.annualReturn || 0, yr * 12, initBal)));
-    return `<tr>
-    <td><button onclick="deleteBudgetPlan('${p.id}')" style="background:rgba(239,68,68,0.15);border:none;border-radius:4px;color:#ef4444;padding:3px 8px;cursor:pointer;font-size:13px;line-height:1;">×</button></td>
+    const deleteBtn = p.id
+      ? `<button onclick="deleteBudgetPlan('${p.id}')" style="background:rgba(239,68,68,0.15);border:none;border-radius:4px;color:#ef4444;padding:3px 8px;cursor:pointer;font-size:13px;line-height:1;">×</button>`
+      : `<span style="color:var(--muted);font-size:11px">未登録</span>`;
+    const changeHandler = (field) => p.id
+      ? `updateBudgetField('${p.id}','${field}',+this.value)`
+      : `upsertBudgetPlan('${p.ticker}','${field}',+this.value)`;
+    return `<tr style="${p._unsaved ? 'opacity:0.65' : ''}">
+    <td>${deleteBtn}</td>
     <td style="font-weight:600">${p.name || '-'}</td>
     <td><span class="person-badge person-${p.person || 'self'}">${personLabel[p.person || 'self']}</span></td>
     <td style="text-align:right">
@@ -3354,15 +3380,11 @@ function renderBudgetTable() {
     </td>
     <td style="text-align:right">
       <input type="number" value="${p.monthlyAmount || 0}" min="0" step="1000"
-        style="${inlineStyle}"
-        onchange="updateBudgetField('${p.id}','monthlyAmount',+this.value)"
-        title="月積立額（円）">
+        style="${inlineStyle}" onchange="${changeHandler('monthlyAmount')}" title="月積立額（円）">
     </td>
     <td style="text-align:right">
       <input type="number" value="${(p.annualReturn || 0).toFixed(1)}" min="0" max="50" step="0.1"
-        style="${inlineStyle}width:64px;"
-        onchange="updateBudgetField('${p.id}','annualReturn',+this.value)"
-        title="想定年利（%）">
+        style="${inlineStyle}width:64px;" onchange="${changeHandler('annualReturn')}" title="想定年利（%）">
       <span style="color:var(--pos);font-size:12px">%</span>
     </td>
     <td style="color:var(--muted)">${p.startDate || '-'}</td>
@@ -3446,6 +3468,26 @@ function updateBudgetField(id, field, value) {
   saveBudgetPlans(list);
   renderBudgetSummary();
   renderBudgetSimChart();
+}
+
+// 未登録銘柄の入力時にプランを新規作成してフィールドを更新
+function upsertBudgetPlan(ticker, field, value) {
+  const h = holdings.find(h => h.ticker === ticker);
+  if (!h) return;
+  const list = loadBudgetPlans();
+  const plan = {
+    id: genId(),
+    ticker,
+    name: h.name || ticker,
+    person: h.person || 'self',
+    startDate: new Date().toISOString().slice(0, 7),
+    monthlyAmount: 0,
+    annualReturn: 0,
+  };
+  plan[field] = value;
+  list.push(plan);
+  saveBudgetPlans(list);
+  renderBudget();
 }
 
 function deleteBudgetPlan(id) {
