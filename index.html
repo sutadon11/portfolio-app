@@ -3208,11 +3208,11 @@ function calcFV(monthlyAmount, annualReturnPct, months, initialBalance = 0) {
   return fvContrib + fvInitial;
 }
 
-// プランに紐づく保有銘柄の現在評価額を取得
+// プランに紐づく保有銘柄の現在評価額を取得（ポートフォリオページのデータを使用）
 function getPlanInitialBalance(plan) {
   if (!plan.ticker) return 0;
   const h = holdings.find(h => h.ticker === plan.ticker);
-  return h ? (calcHolding(h).value || 0) : 0;
+  return h ? (calcHolding(h).evalValue || 0) : 0;
 }
 
 function setBudgetSimYears(y) {
