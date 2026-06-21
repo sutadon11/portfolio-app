@@ -3533,6 +3533,7 @@ function saveBudgetPlan() {
     id: budgetEditId || genId(),
     name,
     ticker,
+    account: holding ? (holding.account || 'tokutei') : 'tokutei',
     person: document.getElementById('bp-person').value,
     startDate: document.getElementById('bp-startDate').value,
     monthlyAmount: monthly,
@@ -3609,12 +3610,12 @@ function _refreshBudgetFoot() {
     </tr>`;
 }
 
-// 未登録銘柄の入力時にプランを新規作成またはフィールドを更新
+// 未登録銘柄の入力時にプランを新規作成またはフィールドを更新（再描画なしでDOM更新）
 function upsertBudgetPlan(ticker, account, field, value) {
   const h = holdings.find(h => h.ticker === ticker && (h.account || 'tokutei') === account);
   if (!h) return;
   const list = loadBudgetPlans();
-  // 既存プランがあれば更新（重複防止）
+  let plan;
   const idx = list.findIndex(p =>
     p.ticker === ticker &&
     (p.person || 'self') === (h.person || 'self') &&
@@ -3622,25 +3623,27 @@ function upsertBudgetPlan(ticker, account, field, value) {
   );
   if (idx >= 0) {
     list[idx][field] = value;
-    saveBudgetPlans(list);
-    renderBudgetSummary();
-    renderBudgetSimChart();
-    return;
+    plan = list[idx];
+  } else {
+    plan = {
+      id: genId(), ticker, account,
+      name: h.name || ticker,
+      person: h.person || 'self',
+      startDate: new Date().toISOString().slice(0, 7),
+      monthlyAmount: 0, annualReturn: 0,
+    };
+    plan[field] = value;
+    list.push(plan);
   }
-  const plan = {
-    id: genId(),
-    ticker,
-    account,
-    name: h.name || ticker,
-    person: h.person || 'self',
-    startDate: new Date().toISOString().slice(0, 7),
-    monthlyAmount: 0,
-    annualReturn: 0,
-  };
-  plan[field] = value;
-  list.push(plan);
   saveBudgetPlans(list);
-  renderBudget();
+  // 全体再描画せず、該当行のdata-plan-idをDOM上で更新してから計算列を更新
+  const domRow = [...document.querySelectorAll('#budgetTableBody tr[data-plan-id=""]')]
+    .find(r => r.dataset.ticker === ticker && r.dataset.acc === account);
+  if (domRow) domRow.dataset.planId = plan.id;
+  _refreshBudgetRowCells(plan);
+  _refreshBudgetFoot();
+  renderBudgetSummary();
+  renderBudgetSimChart();
 }
 
 function deleteBudgetPlan(id) {
