@@ -816,11 +816,18 @@
 
   <!-- プラン一覧 -->
   <div class="card" style="overflow-x:auto;">
-    <h3 style="margin:0 0 12px;font-size:15px;">積立プラン一覧</h3>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+      <h3 style="margin:0;font-size:15px;">積立プラン一覧</h3>
+      <span id="budgetSelCount" style="font-size:13px;color:var(--muted);display:none;">
+        <span id="budgetSelNum">0</span>件選択中
+      </span>
+      <button id="budgetDeleteSelBtn" onclick="deleteSelectedBudgetPlans()" style="display:none;background:rgba(239,68,68,0.15);border:1px solid #ef4444;border-radius:6px;color:#ef4444;padding:4px 12px;cursor:pointer;font-size:13px;">選択削除</button>
+    </div>
     <table class="alloc-table" id="budgetTable">
       <thead>
         <tr>
-          <th></th><th>銘柄名</th><th>フラグ</th><th>名義</th><th style="text-align:right">現在残高</th>
+          <th style="width:32px;"><input type="checkbox" id="budgetSelectAll" onchange="toggleSelectAllBudget(this.checked)" title="全選択"></th>
+          <th>銘柄名</th><th>フラグ</th><th>名義</th><th style="text-align:right">現在残高</th>
           <th style="text-align:right">月積立額</th>
           <th style="text-align:right">想定年利</th><th>開始月</th>
           <th style="text-align:right">5年後</th><th style="text-align:right">10年後</th>
@@ -3375,9 +3382,7 @@ function renderBudgetTable() {
   document.getElementById('budgetTableBody').innerHTML = rows.map(p => {
     const initBal = getPlanInitialBalance(p);
     const fvBalOnly = (yr) => '¥' + fmt(Math.round(calcFV(0, p.annualReturn || 0, yr * 12, initBal)));
-    const deleteBtn = p.id
-      ? `<button onclick="deleteBudgetPlan('${p.id}')" style="background:rgba(239,68,68,0.15);border:none;border-radius:4px;color:#ef4444;padding:3px 8px;cursor:pointer;font-size:13px;line-height:1;">×</button>`
-      : `<span style="color:var(--muted);font-size:11px">未登録</span>`;
+    const rowId = p.id || `unsaved_${p.ticker}_${p.person || 'self'}`;
     const changeHandler = (field) => p.id
       ? `updateBudgetField('${p.id}','${field}',+this.value)`
       : `upsertBudgetPlan('${p.ticker}','${field}',+this.value)`;
@@ -3387,8 +3392,8 @@ function renderBudgetTable() {
     const accounts = [...new Set(hlds.map(h => h.account).filter(Boolean))];
     const accountTagsHtml = accounts.map(a => `<span class="tag ${accountTags[a] || 'tag-gray'}">${accountLabels[a] || a}</span>`).join(' ');
     const flagTag = marketTag + (accountTagsHtml ? ' ' + accountTagsHtml : '');
-    return `<tr style="${p._unsaved ? 'opacity:0.65' : ''}">
-    <td>${deleteBtn}</td>
+    return `<tr style="${p._unsaved ? 'opacity:0.65' : ''}" data-row-id="${rowId}" data-plan-id="${p.id || ''}">
+    <td style="text-align:center;"><input type="checkbox" class="budget-row-cb" data-id="${p.id || ''}" onchange="updateBudgetSelCount()"></td>
     <td style="font-weight:600">${p.name || '-'}</td>
     <td style="white-space:nowrap">${flagTag}</td>
     <td><span class="person-badge person-${p.person || 'self'}">${personLabel[p.person || 'self']}</span></td>
@@ -3521,6 +3526,36 @@ function deleteBudgetPlan(id) {
   if (!confirm('このプランを削除しますか？')) return;
   saveBudgetPlans(loadBudgetPlans().filter(x => x.id !== id));
   renderBudget();
+}
+
+function updateBudgetSelCount() {
+  const cbs = document.querySelectorAll('.budget-row-cb');
+  const checked = [...cbs].filter(c => c.checked);
+  const count = checked.length;
+  const countEl = document.getElementById('budgetSelCount');
+  const numEl = document.getElementById('budgetSelNum');
+  const delBtn = document.getElementById('budgetDeleteSelBtn');
+  const allCb = document.getElementById('budgetSelectAll');
+  if (numEl) numEl.textContent = count;
+  if (countEl) countEl.style.display = count > 0 ? '' : 'none';
+  if (delBtn) delBtn.style.display = count > 0 ? '' : 'none';
+  if (allCb) allCb.indeterminate = count > 0 && count < cbs.length;
+  if (allCb) allCb.checked = cbs.length > 0 && count === cbs.length;
+}
+
+function toggleSelectAllBudget(checked) {
+  document.querySelectorAll('.budget-row-cb').forEach(cb => cb.checked = checked);
+  updateBudgetSelCount();
+}
+
+function deleteSelectedBudgetPlans() {
+  const ids = [...document.querySelectorAll('.budget-row-cb:checked')]
+    .map(cb => cb.dataset.id).filter(Boolean);
+  if (!ids.length) return;
+  if (!confirm(`${ids.length}件のプランを削除しますか？`)) return;
+  saveBudgetPlans(loadBudgetPlans().filter(x => !ids.includes(x.id)));
+  renderBudget();
+  showAlert(`${ids.length}件削除しました`, 'info');
 }
 
 function resetAllBudgetPlans() {
