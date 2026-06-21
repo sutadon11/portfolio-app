@@ -3214,10 +3214,14 @@ function calcFV(monthlyAmount, annualReturnPct, months, initialBalance = 0) {
   return fvContrib + fvInitial;
 }
 
-// プランに紐づく保有銘柄の現在評価額を取得（ポートフォリオと同じdedupForSummaryで重複除去して合算）
+// プランに紐づく保有銘柄の現在評価額を取得（ticker+person+accountで1件特定）
 function getPlanInitialBalance(plan) {
   if (!plan.ticker) return 0;
-  const matched = holdings.filter(h => h.ticker === plan.ticker && (h.person || 'self') === (plan.person || 'self'));
+  const matched = holdings.filter(h =>
+    h.ticker === plan.ticker &&
+    (h.person || 'self') === (plan.person || 'self') &&
+    (h.account || 'tokutei') === (plan.account || 'tokutei')
+  );
   return dedupForSummary(matched).reduce((s, h) => s + (calcHolding(h).evalValue || 0), 0);
 }
 
@@ -3344,30 +3348,30 @@ function renderBudgetTable() {
   const plans = loadBudgetPlans();
   const personLabel = { self: '自分', wife: '妻' };
 
-  // 投資信託保有銘柄を ticker+person で重複排除して取得
-  const seen = new Set();
-  const fundHoldings = holdings.filter(h => {
-    if (h.market !== 'fund') return false;
-    if (personFilter && (h.person || 'self') !== personFilter) return false;
-    const key = `${h.ticker}__${h.person || 'self'}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  // ポートフォリオと同じdedupForSummaryで25件に合わせる（ticker+person+account単位）
+  const allFunds = holdings.filter(h => h.market === 'fund' && (!personFilter || (h.person || 'self') === personFilter));
+  const fundHoldings = dedupForSummary(allFunds);
 
   const rows = fundHoldings.map(h => {
     const key_ticker = h.ticker;
     const key_person = h.person || 'self';
-    const existing = plans.find(p => p.ticker === key_ticker && (p.person || 'self') === key_person);
+    const key_account = h.account || 'tokutei';
+    const existing = plans.find(p =>
+      p.ticker === key_ticker &&
+      (p.person || 'self') === key_person &&
+      (p.account || 'tokutei') === key_account
+    );
     return existing || {
       id: null,
       ticker: key_ticker,
+      account: key_account,
       name: h.name || key_ticker,
       person: key_person,
       monthlyAmount: 0,
       annualReturn: 0,
       startDate: new Date().toISOString().slice(0, 7),
       _unsaved: true,
+      _holding: h,
     };
   });
 
@@ -3382,10 +3386,11 @@ function renderBudgetTable() {
   document.getElementById('budgetTableBody').innerHTML = rows.map(p => {
     const initBal = getPlanInitialBalance(p);
     const fvBalOnly = (yr) => '¥' + fmt(Math.round(calcFV(0, p.annualReturn || 0, yr * 12, initBal)));
-    const rowId = p.id || `unsaved_${p.ticker}_${p.person || 'self'}`;
+    const rowId = p.id || `unsaved_${p.ticker}_${p.person || 'self'}_${p.account || 'tokutei'}`;
+    const acc = p.account || 'tokutei';
     const changeHandler = (field) => p.id
       ? `updateBudgetField('${p.id}','${field}',+this.value)`
-      : `upsertBudgetPlan('${p.ticker}','${field}',+this.value)`;
+      : `upsertBudgetPlan('${p.ticker}','${acc}','${field}',+this.value)`;
     // 同ticker+personの全holdingからフラグ（市場+NISA区分）を収集
     const hlds = holdings.filter(h => h.ticker === p.ticker && (h.person || 'self') === (p.person || 'self'));
     const marketTag = hlds.length ? `<span class="tag ${marketTags[hlds[0].market] || ''}">${marketLabels[hlds[0].market] || hlds[0].market}</span>` : '-';
@@ -3505,13 +3510,14 @@ function updateBudgetField(id, field, value) {
 }
 
 // 未登録銘柄の入力時にプランを新規作成してフィールドを更新
-function upsertBudgetPlan(ticker, field, value) {
-  const h = holdings.find(h => h.ticker === ticker);
+function upsertBudgetPlan(ticker, account, field, value) {
+  const h = holdings.find(h => h.ticker === ticker && (h.account || 'tokutei') === account);
   if (!h) return;
   const list = loadBudgetPlans();
   const plan = {
     id: genId(),
     ticker,
+    account,
     name: h.name || ticker,
     person: h.person || 'self',
     startDate: new Date().toISOString().slice(0, 7),
