@@ -3418,13 +3418,19 @@ function renderBudgetTable() {
   </tr>`;
   }).join('');
 
-  // 現在残高の合計行
+  // 合計行・加重平均年利
   const totalBal = rows.reduce((s, p) => s + getPlanInitialBalance(p), 0);
+  const totalMonthly = rows.reduce((s, p) => s + (p.monthlyAmount || 0), 0);
+  const weightedReturn = totalBal > 0
+    ? rows.reduce((s, p) => s + getPlanInitialBalance(p) * (p.annualReturn || 0), 0) / totalBal
+    : 0;
   document.getElementById('budgetTableBody').innerHTML +=
     `<tr style="border-top:2px solid var(--border);font-weight:700;">
-      <td colspan="4" style="text-align:right;padding-right:12px;color:var(--muted)">合計</td>
+      <td colspan="4" style="text-align:right;padding-right:12px;color:var(--muted)">合計 / 加重平均</td>
       <td style="text-align:right;color:var(--text)">¥${fmt(totalBal)}</td>
-      <td colspan="7"></td>
+      <td style="text-align:right;color:var(--text)">¥${fmt(totalMonthly)}</td>
+      <td style="text-align:right;color:var(--pos)">${weightedReturn.toFixed(2)}%</td>
+      <td colspan="5"></td>
     </tr>`;
 }
 
