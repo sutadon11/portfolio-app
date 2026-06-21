@@ -835,6 +835,7 @@
         </tr>
       </thead>
       <tbody id="budgetTableBody"></tbody>
+      <tfoot id="budgetTableFoot"></tfoot>
     </table>
   </div>
 </div>
@@ -3482,13 +3483,13 @@ function renderBudgetTable() {
   </tr>`;
   }).join('');
 
-  // 合計行・加重平均年利
+  // 合計行・加重平均年利（tfootに分離してinnerHTML+=の破壊を回避）
   const totalBal = rows.reduce((s, p) => s + getPlanInitialBalance(p), 0);
   const totalMonthly = rows.reduce((s, p) => s + (p.monthlyAmount || 0), 0);
   const weightedReturn = totalBal > 0
     ? rows.reduce((s, p) => s + getPlanInitialBalance(p) * (p.annualReturn || 0), 0) / totalBal
     : 0;
-  document.getElementById('budgetTableBody').innerHTML +=
+  document.getElementById('budgetTableFoot').innerHTML =
     `<tr style="border-top:2px solid var(--border);font-weight:700;">
       <td colspan="4" style="text-align:right;padding-right:12px;color:var(--muted)">合計 / 加重平均</td>
       <td style="text-align:right;color:var(--text)">¥${fmt(totalBal)}</td>
@@ -3586,11 +3587,24 @@ function updateBudgetField(id, field, value) {
   renderBudgetSimChart();
 }
 
-// 未登録銘柄の入力時にプランを新規作成してフィールドを更新
+// 未登録銘柄の入力時にプランを新規作成またはフィールドを更新
 function upsertBudgetPlan(ticker, account, field, value) {
   const h = holdings.find(h => h.ticker === ticker && (h.account || 'tokutei') === account);
   if (!h) return;
   const list = loadBudgetPlans();
+  // 既存プランがあれば更新（重複防止）
+  const idx = list.findIndex(p =>
+    p.ticker === ticker &&
+    (p.person || 'self') === (h.person || 'self') &&
+    (p.account || 'tokutei') === account
+  );
+  if (idx >= 0) {
+    list[idx][field] = value;
+    saveBudgetPlans(list);
+    renderBudgetSummary();
+    renderBudgetSimChart();
+    return;
+  }
   const plan = {
     id: genId(),
     ticker,
