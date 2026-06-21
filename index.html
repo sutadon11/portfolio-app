@@ -3436,18 +3436,25 @@ function renderBudgetTable() {
     const fvBalOnly = (yr) => '¥' + fmt(Math.round(calcFV(0, p.annualReturn || 0, yr * 12, initBal)));
     const rowId = p.id || `unsaved_${p.ticker}_${p.person || 'self'}_${p.account || 'tokutei'}`;
     const acc = p.account || 'tokutei';
-    const changeHandler = (field) => p.id
-      ? `updateBudgetField('${p.id}','${field}',+this.value)`
-      : `upsertBudgetPlan('${p.ticker}','${acc}','${field}',+this.value)`;
-    // 同ticker+personの全holdingからフラグ（市場+NISA区分）を収集
-    const hlds = holdings.filter(h => h.ticker === p.ticker && (h.person || 'self') === (p.person || 'self'));
+    // インラインJSを使わずdata属性経由で呼び出し（tickerの特殊文字対策）
+    const cbAttr = p.id
+      ? `data-plan-id="${p.id}"`
+      : `data-ticker="${p.ticker.replace(/"/g,'&quot;')}" data-acc="${acc}"`;
+    const onchangeHandler = p.id
+      ? `updateBudgetField(this.closest('tr').dataset.planId,field,+this.value)`
+      : `upsertBudgetPlan(this.dataset.ticker||this.closest('[data-ticker]').dataset.ticker, this.dataset.acc||this.closest('[data-ticker]').dataset.acc, field, +this.value)`;
+    // この行のticker+person+accountに一致するholdingのみでフラグ生成
+    const hlds = dedupForSummary(holdings.filter(h =>
+      h.ticker === p.ticker &&
+      (h.person || 'self') === (p.person || 'self') &&
+      (h.account || 'tokutei') === acc
+    ));
     const marketTag = hlds.length ? `<span class="tag ${marketTags[hlds[0].market] || ''}">${marketLabels[hlds[0].market] || hlds[0].market}</span>` : '-';
-    const accounts = [...new Set(hlds.map(h => h.account).filter(Boolean))];
-    const accountTagsHtml = accounts.map(a => `<span class="tag ${accountTags[a] || 'tag-gray'}">${accountLabels[a] || a}</span>`).join(' ');
+    const rowAccount = acc !== 'tokutei' ? `<span class="tag ${accountTags[acc] || 'tag-gray'}">${accountLabels[acc] || acc}</span>` : '';
     const sources = [...new Set(hlds.map(h => h.source).filter(Boolean))];
     const sourceTagsHtml = sources.map(s => `<span class="tag ${sourceTags[s] || 'tag-gray'}">${sourceLabels[s] || s}</span>`).join(' ');
-    const flagTag = marketTag + (accountTagsHtml ? ' ' + accountTagsHtml : '') + (sourceTagsHtml ? ' ' + sourceTagsHtml : '');
-    return `<tr style="${p._unsaved ? 'opacity:0.65' : ''}" data-row-id="${rowId}" data-plan-id="${p.id || ''}">
+    const flagTag = marketTag + (rowAccount ? ' ' + rowAccount : '') + (sourceTagsHtml ? ' ' + sourceTagsHtml : '');
+    return `<tr style="${p._unsaved ? 'opacity:0.65' : ''}" data-row-id="${rowId}" data-plan-id="${p.id || ''}" ${cbAttr}>
     <td style="text-align:center;"><input type="checkbox" class="budget-row-cb" data-id="${p.id || ''}" onchange="updateBudgetSelCount()"></td>
     <td style="font-weight:600">${p.name || '-'}</td>
     <td style="white-space:nowrap">${flagTag}</td>
@@ -3458,11 +3465,13 @@ function renderBudgetTable() {
     </td>
     <td style="text-align:right">
       <input type="number" value="${p.monthlyAmount || 0}" min="0" step="1000"
-        style="${inlineStyle}" onchange="${changeHandler('monthlyAmount')}" title="月積立額（円）">
+        style="${inlineStyle}"
+        onchange="budgetFieldChange(this,'monthlyAmount')" title="月積立額（円）">
     </td>
     <td style="text-align:right">
       <input type="number" value="${(p.annualReturn || 0).toFixed(1)}" min="0" max="50" step="0.1"
-        style="${inlineStyle}width:64px;" onchange="${changeHandler('annualReturn')}" title="想定年利（%）">
+        style="${inlineStyle}width:64px;"
+        onchange="budgetFieldChange(this,'annualReturn')" title="想定年利（%）">
       <span style="color:var(--pos);font-size:12px">%</span>
     </td>
     <td style="color:var(--muted)">${p.startDate || '-'}</td>
@@ -3551,6 +3560,20 @@ function saveBudgetPlan() {
   closeBudgetModal();
   renderBudget();
   showAlert((budgetEditId ? '更新' : '追加') + 'しました: ' + name, 'info');
+}
+
+// input onchange の共通ハンドラ（ticker特殊文字対策でdata属性経由）
+function budgetFieldChange(el, field) {
+  const row = el.closest('tr');
+  const planId = row.dataset.planId;
+  const value = +el.value;
+  if (planId) {
+    updateBudgetField(planId, field, value);
+  } else {
+    const ticker = row.dataset.ticker;
+    const acc = row.dataset.acc || 'tokutei';
+    upsertBudgetPlan(ticker, acc, field, value);
+  }
 }
 
 function updateBudgetField(id, field, value) {
