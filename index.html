@@ -3391,7 +3391,9 @@ function renderBudgetTable() {
     const marketTag = hlds.length ? `<span class="tag ${marketTags[hlds[0].market] || ''}">${marketLabels[hlds[0].market] || hlds[0].market}</span>` : '-';
     const accounts = [...new Set(hlds.map(h => h.account).filter(Boolean))];
     const accountTagsHtml = accounts.map(a => `<span class="tag ${accountTags[a] || 'tag-gray'}">${accountLabels[a] || a}</span>`).join(' ');
-    const flagTag = marketTag + (accountTagsHtml ? ' ' + accountTagsHtml : '');
+    const sources = [...new Set(hlds.map(h => h.source).filter(Boolean))];
+    const sourceTagsHtml = sources.map(s => `<span class="tag ${sourceTags[s] || 'tag-gray'}">${sourceLabels[s] || s}</span>`).join(' ');
+    const flagTag = marketTag + (accountTagsHtml ? ' ' + accountTagsHtml : '') + (sourceTagsHtml ? ' ' + sourceTagsHtml : '');
     return `<tr style="${p._unsaved ? 'opacity:0.65' : ''}" data-row-id="${rowId}" data-plan-id="${p.id || ''}">
     <td style="text-align:center;"><input type="checkbox" class="budget-row-cb" data-id="${p.id || ''}" onchange="updateBudgetSelCount()"></td>
     <td style="font-weight:600">${p.name || '-'}</td>
