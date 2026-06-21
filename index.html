@@ -3381,12 +3381,16 @@ function renderBudgetTable() {
     const changeHandler = (field) => p.id
       ? `updateBudgetField('${p.id}','${field}',+this.value)`
       : `upsertBudgetPlan('${p.ticker}','${field}',+this.value)`;
-    const hld = holdings.find(h => h.ticker === p.ticker && (h.person || 'self') === (p.person || 'self'));
-    const flagTag = hld ? `<span class="tag ${marketTags[hld.market] || ''}">${marketLabels[hld.market] || hld.market}</span>` : '-';
+    // 同ticker+personの全holdingからフラグ（市場+NISA区分）を収集
+    const hlds = holdings.filter(h => h.ticker === p.ticker && (h.person || 'self') === (p.person || 'self'));
+    const marketTag = hlds.length ? `<span class="tag ${marketTags[hlds[0].market] || ''}">${marketLabels[hlds[0].market] || hlds[0].market}</span>` : '-';
+    const accounts = [...new Set(hlds.map(h => h.account).filter(Boolean))];
+    const accountTagsHtml = accounts.map(a => `<span class="tag ${accountTags[a] || 'tag-gray'}">${accountLabels[a] || a}</span>`).join(' ');
+    const flagTag = marketTag + (accountTagsHtml ? ' ' + accountTagsHtml : '');
     return `<tr style="${p._unsaved ? 'opacity:0.65' : ''}">
     <td>${deleteBtn}</td>
     <td style="font-weight:600">${p.name || '-'}</td>
-    <td>${flagTag}</td>
+    <td style="white-space:nowrap">${flagTag}</td>
     <td><span class="person-badge person-${p.person || 'self'}">${personLabel[p.person || 'self']}</span></td>
     <td style="text-align:right">
       <div style="font-weight:600">¥${fmt(initBal)}</div>
@@ -3408,6 +3412,15 @@ function renderBudgetTable() {
     <td style="text-align:right;color:#5ad8a6;font-weight:600">${fmtFV(p, 30)}</td>
   </tr>`;
   }).join('');
+
+  // 現在残高の合計行
+  const totalBal = rows.reduce((s, p) => s + getPlanInitialBalance(p), 0);
+  document.getElementById('budgetTableBody').innerHTML +=
+    `<tr style="border-top:2px solid var(--border);font-weight:700;">
+      <td colspan="4" style="text-align:right;padding-right:12px;color:var(--muted)">合計</td>
+      <td style="text-align:right;color:var(--text)">¥${fmt(totalBal)}</td>
+      <td colspan="7"></td>
+    </tr>`;
 }
 
 function openBudgetModal(id) {
