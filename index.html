@@ -820,7 +820,8 @@
     <table class="alloc-table" id="budgetTable">
       <thead>
         <tr>
-          <th>銘柄名</th><th>名義</th><th style="text-align:right">月積立額</th>
+          <th>銘柄名</th><th>名義</th><th style="text-align:right">現在残高</th>
+          <th style="text-align:right">月積立額</th>
           <th style="text-align:right">想定年利</th><th>開始月</th>
           <th style="text-align:right">5年後</th><th style="text-align:right">10年後</th>
           <th style="text-align:right">20年後</th><th style="text-align:right">30年後</th>
@@ -3341,9 +3342,16 @@ function renderBudgetTable() {
     return;
   }
   const inlineStyle = 'width:90px;text-align:right;padding:4px 6px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;';
-  document.getElementById('budgetTableBody').innerHTML = list.map(p => `<tr>
+  document.getElementById('budgetTableBody').innerHTML = list.map(p => {
+    const initBal = getPlanInitialBalance(p);
+    const fvBalOnly = (yr) => '¥' + fmt(Math.round(calcFV(0, p.annualReturn || 0, yr * 12, initBal)));
+    return `<tr>
     <td style="font-weight:600">${p.name || '-'}</td>
     <td><span class="person-badge person-${p.person || 'self'}">${personLabel[p.person || 'self']}</span></td>
+    <td style="text-align:right">
+      <div style="font-weight:600">¥${fmt(initBal)}</div>
+      <div style="font-size:10px;color:var(--muted)">残高のみ: ${fvBalOnly(10)}(10年)</div>
+    </td>
     <td style="text-align:right">
       <input type="number" value="${p.monthlyAmount || 0}" min="0" step="1000"
         style="${inlineStyle}"
@@ -3365,7 +3373,8 @@ function renderBudgetTable() {
     <td style="white-space:nowrap">
       <button onclick="deleteBudgetPlan('${p.id}')" style="background:rgba(239,68,68,0.15);border:none;border-radius:4px;color:#ef4444;padding:2px 8px;cursor:pointer;font-size:11px">削除</button>
     </td>
-  </tr>`).join('');
+  </tr>`;
+  }).join('');
 }
 
 function openBudgetModal(id) {
