@@ -3199,11 +3199,19 @@ function getBudgetFiltered() {
   return p ? list.filter(e => (e.person || 'self') === p) : list;
 }
 
-// 複利計算: 月積立額×n ヶ月後の将来価値
-function calcFV(monthlyAmount, annualReturnPct, months) {
+// 複利計算: 初期残高 + 月積立額 × n ヶ月後の将来価値
+function calcFV(monthlyAmount, annualReturnPct, months, initialBalance = 0) {
   const r = annualReturnPct / 100 / 12;
-  if (r === 0) return monthlyAmount * months;
-  return monthlyAmount * ((Math.pow(1 + r, months) - 1) / r) * (1 + r);
+  const fvContrib = r === 0 ? monthlyAmount * months : monthlyAmount * ((Math.pow(1 + r, months) - 1) / r) * (1 + r);
+  const fvInitial = initialBalance * Math.pow(1 + r, months);
+  return fvContrib + fvInitial;
+}
+
+// プランに紐づく保有銘柄の現在評価額を取得
+function getPlanInitialBalance(plan) {
+  if (!plan.ticker) return 0;
+  const h = holdings.find(h => h.ticker === plan.ticker);
+  return h ? (calcHolding(h).value || 0) : 0;
 }
 
 function setBudgetSimYears(y) {
@@ -3225,13 +3233,13 @@ function renderBudgetSummary() {
   const totalMonthly = list.reduce((s, p) => s + (p.monthlyAmount || 0), 0);
   const fv = (yr) => list.reduce((s, p) => {
     const months = Math.max(0, yr * 12);
-    return s + calcFV(p.monthlyAmount || 0, p.annualReturn || 0, months);
+    return s + calcFV(p.monthlyAmount || 0, p.annualReturn || 0, months, getPlanInitialBalance(p));
   }, 0);
   const cards = [
     { label: '月次積立合計', value: '¥' + fmt(totalMonthly), sub: '全プラン合計' },
-    { label: '5年後試算', value: '¥' + fmt(Math.round(fv(5))), sub: '複利込み' },
-    { label: '10年後試算', value: '¥' + fmt(Math.round(fv(10))), sub: '複利込み' },
-    { label: '20年後試算', value: '¥' + fmt(Math.round(fv(20))), sub: '複利込み' },
+    { label: '5年後試算', value: '¥' + fmt(Math.round(fv(5))), sub: '現残高＋複利込み' },
+    { label: '10年後試算', value: '¥' + fmt(Math.round(fv(10))), sub: '現残高＋複利込み' },
+    { label: '20年後試算', value: '¥' + fmt(Math.round(fv(20))), sub: '現残高＋複利込み' },
   ];
   document.getElementById('budgetSummaryCards').innerHTML = cards.map(c =>
     `<div class="summary-card"><div class="label">${c.label}</div><div class="value" style="font-size:18px">${c.value}</div><div class="sub muted">${c.sub}</div></div>`
@@ -3252,8 +3260,8 @@ function renderBudgetSimChart() {
   for (let m = 0; m <= months; m += 3) {
     const yr = m / 12;
     labels.push(yr % 1 === 0 ? yr + '年' : '');
-    const principal = list.reduce((s, p) => s + (p.monthlyAmount || 0) * m, 0);
-    const total = list.reduce((s, p) => s + calcFV(p.monthlyAmount || 0, p.annualReturn || 0, m), 0);
+    const principal = list.reduce((s, p) => s + getPlanInitialBalance(p) + (p.monthlyAmount || 0) * m, 0);
+    const total = list.reduce((s, p) => s + calcFV(p.monthlyAmount || 0, p.annualReturn || 0, m, getPlanInitialBalance(p)), 0);
     principalData.push(Math.round(principal));
     totalData.push(Math.round(total));
   }
@@ -3327,7 +3335,7 @@ function renderBudgetActual() {
 function renderBudgetTable() {
   const list = getBudgetFiltered();
   const personLabel = { self: '自分', wife: '妻' };
-  const fmtFV = (p, yr) => '¥' + fmt(Math.round(calcFV(p.monthlyAmount || 0, p.annualReturn || 0, yr * 12)));
+  const fmtFV = (p, yr) => '¥' + fmt(Math.round(calcFV(p.monthlyAmount || 0, p.annualReturn || 0, yr * 12, getPlanInitialBalance(p))));
   if (!list.length) {
     document.getElementById('budgetTableBody').innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:32px">プランがありません。「＋ プラン追加」から登録してください</td></tr>';
     return;
