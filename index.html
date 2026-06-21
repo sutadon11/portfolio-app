@@ -3483,20 +3483,7 @@ function renderBudgetTable() {
   </tr>`;
   }).join('');
 
-  // 合計行・加重平均年利（tfootに分離してinnerHTML+=の破壊を回避）
-  const totalBal = rows.reduce((s, p) => s + getPlanInitialBalance(p), 0);
-  const totalMonthly = rows.reduce((s, p) => s + (p.monthlyAmount || 0), 0);
-  const weightedReturn = totalBal > 0
-    ? rows.reduce((s, p) => s + getPlanInitialBalance(p) * (p.annualReturn || 0), 0) / totalBal
-    : 0;
-  document.getElementById('budgetTableFoot').innerHTML =
-    `<tr style="border-top:2px solid var(--border);font-weight:700;">
-      <td colspan="4" style="text-align:right;padding-right:12px;color:var(--muted)">合計 / 加重平均</td>
-      <td style="text-align:right;color:var(--text)">¥${fmt(totalBal)}</td>
-      <td style="text-align:right;color:var(--text)">¥${fmt(totalMonthly)}</td>
-      <td style="text-align:right;color:var(--pos)">${weightedReturn.toFixed(2)}%</td>
-      <td colspan="5"></td>
-    </tr>`;
+  _refreshBudgetFoot();
 }
 
 function openBudgetModal(id) {
@@ -3583,9 +3570,43 @@ function updateBudgetField(id, field, value) {
   if (idx < 0) return;
   list[idx][field] = value;
   saveBudgetPlans(list);
-  renderBudgetTable();
+  // テーブル全体は再描画せず、その行の計算列だけ更新（フォーカス維持のため）
+  _refreshBudgetRowCells(list[idx]);
+  _refreshBudgetFoot();
   renderBudgetSummary();
   renderBudgetSimChart();
+}
+
+function _refreshBudgetRowCells(plan) {
+  const row = document.querySelector(`#budgetTableBody tr[data-plan-id="${plan.id}"]`);
+  if (!row) return;
+  const initBal = getPlanInitialBalance(plan);
+  const fv = (yr) => '¥' + fmt(Math.round(calcFV(plan.monthlyAmount || 0, plan.annualReturn || 0, yr * 12, initBal)));
+  const cells = [...row.children];
+  // 現在残高セル内の「残高のみ」サブテキスト更新
+  const balSub = cells[4]?.querySelector('div:last-child');
+  if (balSub) balSub.textContent = `残高のみ: ¥${fmt(Math.round(calcFV(0, plan.annualReturn || 0, 120, initBal)))}(10年)`;
+  // 5年後〜30年後
+  if (cells[8])  cells[8].textContent  = fv(5);
+  if (cells[9])  cells[9].textContent  = fv(10);
+  if (cells[10]) cells[10].textContent = fv(20);
+  if (cells[11]) cells[11].textContent = fv(30);
+}
+
+function _refreshBudgetFoot() {
+  const rows = getBudgetRows();
+  const totalBal     = rows.reduce((s, p) => s + getPlanInitialBalance(p), 0);
+  const totalMonthly = rows.reduce((s, p) => s + (p.monthlyAmount || 0), 0);
+  const weightedReturn = totalBal > 0
+    ? rows.reduce((s, p) => s + getPlanInitialBalance(p) * (p.annualReturn || 0), 0) / totalBal : 0;
+  document.getElementById('budgetTableFoot').innerHTML =
+    `<tr style="border-top:2px solid var(--border);font-weight:700;">
+      <td colspan="4" style="text-align:right;padding-right:12px;color:var(--muted)">合計 / 加重平均</td>
+      <td style="text-align:right;color:var(--text)">¥${fmt(totalBal)}</td>
+      <td style="text-align:right;color:var(--text)">¥${fmt(totalMonthly)}</td>
+      <td style="text-align:right;color:var(--pos)">${weightedReturn.toFixed(2)}%</td>
+      <td colspan="5"></td>
+    </tr>`;
 }
 
 // 未登録銘柄の入力時にプランを新規作成またはフィールドを更新
