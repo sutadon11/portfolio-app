@@ -820,7 +820,7 @@
     <table class="alloc-table" id="budgetTable">
       <thead>
         <tr>
-          <th></th><th>銘柄名</th><th>名義</th><th style="text-align:right">現在残高</th>
+          <th></th><th>銘柄名</th><th>フラグ</th><th>名義</th><th style="text-align:right">現在残高</th>
           <th style="text-align:right">月積立額</th>
           <th style="text-align:right">想定年利</th><th>開始月</th>
           <th style="text-align:right">5年後</th><th style="text-align:right">10年後</th>
@@ -2662,7 +2662,7 @@ function renderTable() {
   wrap.innerHTML = `<table>
     <thead><tr>
       <th><input type="checkbox" id="selectAllCheck" ${allChecked ? 'checked' : ''} onchange="toggleSelectAll(this.checked)"></th>
-      ${sortTh('ticker','銘柄')}<th>市場</th>${sortTh('qty','数量')}<th>現在価格</th><th>取得単価</th>${sortTh('evalValue','評価額')}${sortTh('pnl','含み損益')}${sortTh('date','取得日')}<th>操作</th>
+      ${sortTh('ticker','銘柄')}<th>フラグ</th>${sortTh('qty','数量')}<th>現在価格</th><th>取得単価</th>${sortTh('evalValue','評価額')}${sortTh('pnl','含み損益')}${sortTh('date','取得日')}<th>操作</th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
@@ -3381,9 +3381,12 @@ function renderBudgetTable() {
     const changeHandler = (field) => p.id
       ? `updateBudgetField('${p.id}','${field}',+this.value)`
       : `upsertBudgetPlan('${p.ticker}','${field}',+this.value)`;
+    const hld = holdings.find(h => h.ticker === p.ticker && (h.person || 'self') === (p.person || 'self'));
+    const flagTag = hld ? `<span class="tag ${marketTags[hld.market] || ''}">${marketLabels[hld.market] || hld.market}</span>` : '-';
     return `<tr style="${p._unsaved ? 'opacity:0.65' : ''}">
     <td>${deleteBtn}</td>
     <td style="font-weight:600">${p.name || '-'}</td>
+    <td>${flagTag}</td>
     <td><span class="person-badge person-${p.person || 'self'}">${personLabel[p.person || 'self']}</span></td>
     <td style="text-align:right">
       <div style="font-weight:600">¥${fmt(initBal)}</div>
